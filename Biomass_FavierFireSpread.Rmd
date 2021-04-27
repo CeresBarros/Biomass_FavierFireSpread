@@ -1,13 +1,13 @@
 ---
-title: "fire_STSM"
-author: ""
-date: "12 December 2017"
+title: "Biomass_FavierFireSpread"
+author: "Ceres Barros"
+date: "27 April 2021"
 output: pdf_document
 ---
 
 # Fire state-and-transition toy model
 
-This module contains a VERY simple state-and-transition fire model.
+This module contains a simple state-and-transition fire model.
 For now, it is a stand-alone module, that uses the LCC 2005 vegetation map and relies on the `SpaDES::spread2` to calculate fire spread.
 
 # Usage
@@ -17,14 +17,28 @@ library(igraph)
 library(raster)
 library(SpaDES)
 
-moduleDir <- file.path("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/m")
-inputDir <- file.path("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/inputs")
-outputDir <- file.path("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/outputs")
-cacheDir <- file.path("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/cache")
+moduleDir <- file.path("m")
+inputDir <- file.path("inputs")
+outputDir <- file.path("outputs")
+cacheDir <- file.path("cache")
 
-## Get foothills study area
-foothills <- shapefile("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/inputs/Alberta_study_area/Alberta_study_area")
-LCC2005 <- raster("C:/Ceres/GitHub/LandscapesInMotion/R/SpaDES/inputs/LCC2005_V1_4a.tif")
+## Get foothills study area and make it smaller
+foothills <- Cache(prepKMZ2shapefile,
+                   url = "https://drive.google.com/open?id=1OCqRRIjRNFi6LmxY6m8QH4gMBOLTNeDs",
+                   archive = "Foothills_study_area.zip",
+                   destinationPath = simPaths$inputPath,
+                   cacheRepo = simPaths$cachePath,
+                   userTags = "foothills",
+                   omitArgs = c("userTags"))
+foothills <- spTransform(foothills,
+                         CRS("+proj=lcc +lat_1=49 +lat_2=77 +lat_0=0 +lon_0=-95 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0"))
+foothills <- raster::buffer(foothills, width = -30000)
+
+LCC2005 <- prepInputsLCC(destinationPath = dPath,
+                         studyArea = foothills,   
+                         filename2 = "rstLCC.tif",
+                         overwrite = TRUE,
+                         userTags = c("rstLCC"))
 
 ## simulation parameters
 paths <- list(
@@ -34,12 +48,12 @@ paths <- list(
   outputPath = outputDir
 )
 
-modules <- list("fire_STSM")
+modules <- list("Biomass_FavierFireSpread")
 
 times <- list(start = 0, end = 10)
 
 parameters <- list(
-  fire_STSM = list(.useCache = TRUE, fireSize = 1000, noStartPix = 100)
+  Biomass_FavierFireSpread = list(.useCache = TRUE, fireSize = 1000, noStartPix = 100)
 )
 
 objects <- list("studyArea" = foothills, "LCC2005" = LCC2005)
