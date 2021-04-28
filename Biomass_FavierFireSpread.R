@@ -1,7 +1,7 @@
 # Everything in this file gets sourced during simInit, and all functions and objects
 # are put into the simList. To use objects and functions, use sim$xxx.
 defineModule(sim, list(
-  name = "fireSpread",
+  name = "Biomass_FavierFireSpread",
   description = "Fire spread model using Favier (2004) percolation model, where percolation probabilities are
   conditioned on fire (behaviour) properties calculated using, e.g, the Canadian Forest Fire Behaviour Prediction System",
   keywords = c("fire", "percolation model", "fire-vegetation feedbacks", "fire-climate feedbacks", "FBP system"),
@@ -12,7 +12,7 @@ defineModule(sim, list(
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = "year",
   citation = list("citation.bib"),
-  documentation = list("README.txt", "fireSpread.Rmd"),
+  documentation = list("README.txt", "Biomass_FavierFireSpread.Rmd"),
   reqdPkgs = list("R.utils", "raster", "data.table", "dplyr", "humidity", #"cffdrs",  ## cffdrs is causing installation problems
                   "sf", "scales", "crayon",
                   "PredictiveEcology/SpaDES.core@development",
@@ -99,7 +99,7 @@ defineModule(sim, list(
   )
 ))
 
-doEvent.fireSpread = function(sim, eventTime, eventType, debug = FALSE) {
+doEvent.Biomass_FavierFireSpread = function(sim, eventTime, eventType, debug = FALSE) {
   switch(
     eventType,
     init = {
@@ -107,7 +107,7 @@ doEvent.fireSpread = function(sim, eventTime, eventType, debug = FALSE) {
       sim <- Init(sim)
 
       ## schedule future event(s)
-      sim <- scheduleEvent(sim, P(sim)$fireInitialTime, "fireSpread",
+      sim <- scheduleEvent(sim, P(sim)$fireInitialTime, "Biomass_FavierFireSpread",
                            "doFireSpread", eventPriority = 2.5) ## always schedule fire
     },
     doFireSpread = {
@@ -123,7 +123,7 @@ doEvent.fireSpread = function(sim, eventTime, eventType, debug = FALSE) {
       }
 
       ## schedule future event(s) - always schedule fire
-      sim <- scheduleEvent(sim, time(sim) + 1, "fireSpread",
+      sim <- scheduleEvent(sim, time(sim) + 1, "Biomass_FavierFireSpread",
                            "doFireSpread", eventPriority = 2.5)  ## always schedule fire
     },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
@@ -507,10 +507,10 @@ doNoFire <- function(sim) {
           !suppliedElsewhere("fireIntRas", sim),
           !suppliedElsewhere("fireTFCRas", sim),
           !suppliedElsewhere("fireCFBRas", sim))) {
-    message(crayon::red(paste0("fireSpread is missing one/several of the following rasters:\n",
+    message(crayon::red(paste0("Biomass_FavierFireSpread is missing one/several of the following rasters:\n",
                                "  fireRSORas, fireROSRas, fireIntRas, fireTFCRas, fireCFBRas or fireIgnitionProb.\n",
                                "  DUMMY RASTERS will be used - if this is not intended, please \n",
-                               "  use a fire module that provides them (e.g. fireSpread)")))
+                               "  use a fire module that provides them (e.g. Biomass_fireProperties)")))
     vals <- getValues(sim$rasterToMatch)
     valsCFB <- valsInt <- valsROS <- valsRSO <- valsTFC <- integer(0)
     valsCFB[!is.na(vals)] <- runif(sum(!is.na(vals)), 0, 1)
