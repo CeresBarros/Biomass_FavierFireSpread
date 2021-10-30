@@ -81,7 +81,7 @@ defineModule(sim, list(
                               "'fireROSRas', 'fireRSORas' and 'fireTFCRas' must have values for non NA values in 'manualFireIgnitionRas'"),
                  sourceURL = NA),
     expectsInput(objectName = "rasterToMatch", "RasterLayer",
-                 desc = "a raster of the studyArea in the same resolution and projection as biomassMap ",
+                 desc = "a raster of the studyArea in the same resolution and projection as 'simulatedBiomassMap'",
                  sourceURL = NA),
     expectsInput(objectName = "simulatedBiomassMap", objectClass = "RasterLayer",
                  desc = paste("Biomass map at each succession time step. If not supplied, will use Canadian Forestry",
@@ -232,11 +232,51 @@ Init <- function(sim) {
     }
   }
 
+  ## MAKE BURNABLE AREAS RASTER -------------------------------
+  ## only areas with biomass can burn if no non-forest fire spread is allowed
+  ## if no simulatedBiomassMap is supplied then generate one from raw data
+  ## at the start
+  ## when non-forest fires are allowed, fire can spread across the whole SA
+  if (is.null(sim$pixelNonForestFuels)) {   ## produced by Biomass_fuelsPFG IF non forest fires are allowed.
+    if (is.null(sim$simulatedBiomassMap)) {
+      cacheTags <- c(currentModule(sim), current(sim))
+      dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
+
+      # If biomassMap is not present either, get rawBiomassMap, but crop it to studyArea/RTM instead of SALarge/RTMLarge
+      rawBiomassMapURL <- paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
+                                 "canada-forests-attributes_attributs-forests-canada/",
+                                 "2001-attributes_attributs-2001/",
+                                 "NFI_MODIS250m_2001_kNN_Structure_Biomass_TotalLiveAboveGround_v1.tif")
+      rawBiomassMapFilename <- "NFI_MODIS250m_2001_kNN_Structure_Biomass_TotalLiveAboveGround_v1.tif"
+      rawBiomassMap <- Cache(prepInputs,
+                             targetFile = rawBiomassMapFilename,
+                             url = rawBiomassMapURL,
+                             destinationPath = dPath,
+                             studyArea = sim$studyArea,
+                             rasterToMatch = sim$rasterToMatch,
+                             maskWithRTM = TRUE,
+                             useSAcrs = FALSE,
+                             method = "bilinear",
+                             datatype = "INT2U",
+                             filename2 = NULL,
+                             userTags = c(cacheTags, "rawBiomassMap"),
+                             omitArgs = c("destinationPath", "targetFile", cacheTags, "stable"))
+
+      mod$burnableAreas <- rawBiomassMap
+      rm(cacheTags, rawBiomassMap)
+    } else {
+      mod$burnableAreas <- sim$simulatedBiomassMap
+    }
+  } else {
+    mod$burnableAreas <- sim$rasterToMatch
+  }
+
   return(invisible(sim))
 }
 
 ## Fire spread event in fire years - rasters should be back in LandR Biomass projection
 doFireSpread <- function(sim) {
+  browser()
   ## make or update fireIgnitionProb from fireSense_IgnitionPredicted
   if (time(sim) == P(sim)$fireInitialTime) {
     if (is.null(sim$fireIgnitionProb)) {
@@ -285,60 +325,30 @@ doFireSpread <- function(sim) {
   }
 
   ## MAKE BURNABLE AREAS RASTER -------------------------------
-  ## only areas with biomass can burn if no non-forest fire spread is allowed
-  ## if no simulatedBiomassMap is supplied then generate one from raw data
-  ## at the start
-  ## when non-forest fires are allowed, fire can spread across the whole SA
+  ## if non-forest fires are NOT allowed (i.e. pixelNonForestFuels is absent),
+  ## try to update burnable areas with simulated biomass. otherwise leave as is
   if (is.null(sim$pixelNonForestFuels)) {
-    if (is.null(sim$simulatedBiomassMap)) {
-      if (is.null(sim$biomassMap)) {
-        cacheTags <- c(currentModule(sim), current(sim))
-        dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
-
-        # If biomassMap is not present either, get rawBiomassMap, but crop it to studyArea/RTM instead of SALarge/RTMLarge
-        rawBiomassMapURL <- paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
-                                   "canada-forests-attributes_attributs-forests-canada/",
-                                   "2001-attributes_attributs-2001/",
-                                   "NFI_MODIS250m_2001_kNN_Structure_Biomass_TotalLiveAboveGround_v1.tif")
-        rawBiomassMapFilename <- "NFI_MODIS250m_2001_kNN_Structure_Biomass_TotalLiveAboveGround_v1.tif"
-        rawBiomassMap <- Cache(prepInputs,
-                               targetFile = rawBiomassMapFilename,
-                               url = rawBiomassMapURL,
-                               destinationPath = dPath,
-                               studyArea = sim$studyArea,
-                               rasterToMatch = sim$rasterToMatch,
-                               maskWithRTM = TRUE,
-                               useSAcrs = FALSE,
-                               method = "bilinear",
-                               datatype = "INT2U",
-                               filename2 = NULL,
-                               userTags = c(cacheTags, "rawBiomassMap"),
-                               omitArgs = c("destinationPath", "targetFile", cacheTags, "stable"))
-
-        burnableAreas <- rawBiomassMap
-        rm(cacheTags, rawBiomassMap)
-      } else {
-        burnableAreas <- sim$biomassMap
-      }
-    } else {
-      burnableAreas <- sim$simulatedBiomassMap
+    if (!is.null(sim$simulatedBiomassMap)) {
+      mod$burnableAreas <- sim$simulatedBiomassMap
     }
+  }
 
   ## if fires are to start and spread in other locations, add those here
   if (!is.null(sim$manualFireIgnitionRas)) {
     mod$burnableAreas[!is.na(sim$manualFireIgnitionRas[])] <- 1
   }
 
-  vals <- data.table(B = getValues(burnableAreas))   ## making a mask is probably faster with data.table
+  ## change to a binary mask.
+  vals <- data.table(B = getValues(mod$burnableAreas))   ## making a mask is probably faster with data.table
   vals <- vals[B > 0, B := 1]
   vals <- vals[B <= 0, B := NA]
-  burnableAreas[] <- vals$B
+  mod$burnableAreas[] <- vals$B
 
   ## MAKE RASTER OF SPREAD PROBABILITIES
   ## spread probability is the combination of ROS and intensity, which have an multiplicative effect
   ## TODO: ROS and intensity should be combined differently
   spreadProb_map <- sim$fireROSRas * sim$fireIntRas
-  spreadProb_map <- mask(spreadProb_map, burnableAreas)
+  spreadProb_map <- mask(spreadProb_map, mod$burnableAreas)
 
   vals <- data.table(spreadP = getValues(spreadProb_map))   ## making a mask is probably faster with data.table
   ## before:
@@ -361,7 +371,7 @@ doFireSpread <- function(sim) {
   ## TODO: TFC and intensity should be combined differently
   persistProb_map <- sim$fireTFCRas / sim$fireIntRas
   persistProb_map[sim$fireIntRas[] == 0] <- 0
-  persistProb_map <- mask(persistProb_map, burnableAreas)
+  persistProb_map <- mask(persistProb_map, mod$burnableAreas)
 
   vals <- data.table(persisP = getValues(persistProb_map))   ## making a mask is probably faster with data.table
   vals[!is.na(persisP), persisPsc := scales::rescale(persisP, to = P(sim)$persistProbRange)]
@@ -374,21 +384,20 @@ doFireSpread <- function(sim) {
       stop("spread and persistence probability rasters have unmatching NAs")
 
   ## redo burnable areas if missing fire probabilities
-  if (any(!is.na(burnableAreas[is.na(spreadProb_map[])])))
-    burnableAreas <- mask(burnableAreas, spreadProb_map)
-
+  if (any(!is.na(mod$burnableAreas[is.na(spreadProb_map[])]))) {
+    mod$burnableAreas <- mask(mod$burnableAreas, spreadProb_map)
+  }
 
   ## MAKE RASTER OF FIRE SPREAD -------------------------------
   ## note that this function has two random components: selection of starting pixels and fire spread
   ## Favier's model:
-
   if (is.null(sim$fireIgnitionProb)) {
     message(blue(paste("'fireIgnitionProb' raster was not supplied. Igniting fires",
                        "randomly across the landscape, in number = to 'noStartPix'")))
-    sim$startPix <- sample(which(!is.na(getValues(burnableAreas))), P(sim)$noStartPix)
+    sim$startPix <- sample(which(!is.na(getValues(mod$burnableAreas))), P(sim)$noStartPix)
   } else {
     ## draw prob of having a fire, assess "winners", convert to vector (also export to sim)
-    startPix <- mask(sim$fireIgnitionProb, burnableAreas)
+    startPix <- mask(sim$fireIgnitionProb, mod$burnableAreas)
     startPix <- rbinom(n = ncell(startPix), size = 1, prob = pmin(startPix[], 1))
     startPix <- which(startPix > 0) ## winners are 0 or larger.
     sim$startPix <- sample(startPix)  ## randomize order so that first fires aren't always at top of landscape
@@ -402,14 +411,14 @@ doFireSpread <- function(sim) {
 
   if (length(sim$startPix)) {
     ## run spread2 for one iteration to simulate escape - a bit like fireSense.R
-    escapedFires <- spread2(landscape = burnableAreas,
+    escapedFires <- spread2(landscape = mod$burnableAreas,
                             spreadProb = spreadProb_map,
                             start = sim$startPix,
                             iterations = 1,
                             plot.it = FALSE,
                             asRaster = FALSE)
 
-    rstCurrentBurn <- spread2(landscape = burnableAreas,
+    rstCurrentBurn <- spread2(landscape = mod$burnableAreas,
                               spreadProb = spreadProb_map,
                               persistProb = persistProb_map,
                               start = escapedFires,
@@ -417,7 +426,7 @@ doFireSpread <- function(sim) {
                               maxSize = sim$fireSize,
                               plot.it = FALSE)
   } else {
-    rstCurrentBurn <- setValues(burnableAreas, rep(NA, ncell(burnableAreas)))
+    rstCurrentBurn <- setValues(mod$burnableAreas, rep(NA, ncell(mod$burnableAreas)))
   }
 
   ## remove fires that only burned one pixel - these didn't really spread
@@ -428,8 +437,8 @@ doFireSpread <- function(sim) {
   }
 
   ## remove fires that spread beyond burnable areas
-  if (any(!is.na(rstCurrentBurn[is.na(burnableAreas[])]))) {
-    rstCurrentBurn <- mask(rstCurrentBurn, burnableAreas)
+  if (any(!is.na(rstCurrentBurn[is.na(mod$burnableAreas[])]))) {
+    rstCurrentBurn <- mask(rstCurrentBurn, mod$burnableAreas)
   }
 
   ## output fire raster with fire IDs
