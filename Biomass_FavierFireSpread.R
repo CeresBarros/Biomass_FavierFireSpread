@@ -21,7 +21,11 @@ defineModule(sim, list(
                   "PredictiveEcology/LandR@development (>= 1.0.0.9003)"),
   parameters = rbind(
     defineParameter("noStartPix", "integer", 100L, 0L, NA,
-                    desc = paste("Number of fire events. Only used if fireIgnitionProb is not available")),
+                    desc = paste("Number of fire events. Only used if 'fireIgnitionProb' is not available, or if",
+                                 "additional fires will be started in non NA pixels in 'manualFireIgnitionRas'.",
+                                 "If both 'fireIgnitionProb' and 'manualFireIgnitionRas' are supplied, fire ignitions",
+                                 "will follow both methods - i.e. randomly drawn with probability = 'fireIgnitionProb'",
+                                 "in each pixel AND a number of fires are randomly allocated to pixels in 'manualFireIgnitionRas'.")),
     defineParameter(name = "fireInitialTime", class = "numeric", default = 2L,
                     desc = "The event time that the first fire disturbance event occurs"),
     defineParameter(name = "fireTimestep", class = "numeric", default = 2L,
@@ -49,9 +53,14 @@ defineModule(sim, list(
     expectsInput(objectName = "fireIntRas", objectClass = "RasterLayer",
                  desc = "Raster of equilibrium head fire intensity [kW/m]"),
     expectsInput(objectName = "fireIgnitionProb", objectClass = "RasterLayer",
-                 desc = paste("Raster of expected no. of ignitions (lambda in a poisson ditribution). Optional.",
-                              "If not present, will use 'noStartPix' to randomly start a given number of fires",
-                              "in the landscape")),
+                 desc = paste("OPTIONAL. Raster of expected no. of ignitions (lambda in a poisson ditribution).",
+                              "If not supplied, will try to look for 'fireSense_IgnitionPredicted' in the simList and use it.",
+                              "If 'fireSense_IgnitionPredicted' is not available, 'noStartPix' will be used to randomly ignite fires",
+                              "in non-NA pixels of 'manualFireIgnitionRas'.",
+                              "If both 'fireIgnitionProb' and 'manualFireIgnitionRas' are supplied, fire ignitions",
+                              "will follow both methods - i.e. randomly drawn with probability = 'fireIgnitionProb'",
+                              "in each pixel AND a number of fires are randomly allocated to pixels in 'manualFireIgnitionRas'.",
+                              "If none is supplied, 'manualFireIgnitionRas'will be = 'rasterToMatch'.")),
     expectsInput(objectName = "fireROSRas", objectClass = "RasterLayer",
                  desc = "Raster of equilibrium rate of spread [m/min]"),
     expectsInput(objectName = "fireRSORas", objectClass = "RasterLayer",
@@ -62,6 +71,15 @@ defineModule(sim, list(
                  desc = paste("Fire size in pixels. Defaults to maximum fire size obtained from fire perimeter",
                               "records in the study area (using all fire perimeter polygons in the Canadian National Fire Database)."),
                  sourceURL = "https://cwfis.cfs.nrcan.gc.ca/downloads/nfdb/fire_poly/current_version/NFDB_poly.zip"),
+    expectsInput(objectName = "manualFireIgnitionRas", "RasterLayer",
+                 desc = paste("OPTIONAL. A raster of pixels where fire ignitions (number = 'noStartPix')",
+                              "will be randomly allocated. Defaults to NULL, in which case only 'fireIgnitionProb' will be used",
+                              "If both 'fireIgnitionProb' and 'manualFireIgnitionRas' are supplied, fire ignitions",
+                              "will follow both methods - i.e. randomly drawn with probability = 'fireIgnitionProb'",
+                              "in each pixel AND a number of fires are randomly allocated to pixels in 'manualFireIgnitionRas'.",
+                              "If none is supplied, 'manualFireIgnitionRas'will be = 'rasterToMatch'. Note that 'fireCFBRas', 'fireCFBRas',",
+                              "'fireROSRas', 'fireRSORas' and 'fireTFCRas' must have values for non NA values in 'manualFireIgnitionRas'"),
+                 sourceURL = NA),
     expectsInput(objectName = "rasterToMatch", "RasterLayer",
                  desc = "a raster of the studyArea in the same resolution and projection as biomassMap ",
                  sourceURL = NA),
@@ -88,6 +106,9 @@ defineModule(sim, list(
     createsOutput(objectName = "fireTFCRas", objectClass = "RasterLayer",
                   desc = "Raster of total fuel consumed [kg/m^2]"),
     createsOutput(objectName = "fireYear", objectClass = "numeric", desc = "Next fire year"),
+    createsOutput(objectName = "manualFireIgnitionRas", "RasterLayer",
+                  desc = paste("OPTIONAL. A raster of pixels where fire ignitions (number = 'noStartPix')",
+                               "created = 'rasterToMatch' if neither 'manualFireIgnitionRas' nor 'fireIgnitionProb' are available.")),
     createsOutput(objectName = "pixelGroupMapFBP", objectClass = "RasterLayer",
                   desc = "updated community map at each succession time step, on FBP-compatible projection"),
     createsOutput(objectName = "rstCurrentBurn", objectClass = "RasterLayer",
@@ -171,6 +192,12 @@ Init <- function(sim) {
                          "Using 'fireSense_IgnitionPredicted' as 'fireIgnitionProb' in", currentModule(sim))))
       sim$fireIgnitionProb <- sim$fireSense_IgnitionPredicted
       mod$useFireSense <- TRUE
+    } else if (is.null(sim$manualFireIgnitionRas)) {
+      message(blue(paste("'fireIgnitionProb' and 'manualFireIgnitionRas' rasters were not supplied,",
+                         "and 'fireSense_IgnitionPredicted' does not exist in sim.",
+                         "Using 'rasterToMatch' as 'manualFireIgnitionRas' and randomly igniting", P(sim)$noStartPix,
+                         "across the landscape.")))
+      sim$manualFireIgnitionRas <- sim$rasterToMatch
     }
   }
 
@@ -194,6 +221,14 @@ Init <- function(sim) {
                            "Rescaling values in fireIgnitionProb")))
         sim$fireIgnitionProb[] <- sim$fireIgnitionProb[] * (finalRes/origRes ^ 2)
       }
+    }
+  }
+
+  ## check if manual ignition raster matches RTM - if not don't attempt to correct
+  ## as the user must be sure where ignitions need to occur.
+  if (!is.null(sim$manualFireIgnitionRas)) {
+    if (!compareRaster(sim$manualFireIgnitionRas, sim$rasterToMatch, stopiffalse = FALSE)) {
+      stop("'manualFireIgnitionRas' and 'rasterToMatch' must match in extent, resolution and projection")
     }
   }
 
@@ -288,8 +323,10 @@ doFireSpread <- function(sim) {
     } else {
       burnableAreas <- sim$simulatedBiomassMap
     }
-  } else {
-    burnableAreas <- sim$rasterToMatch
+
+  ## if fires are to start and spread in other locations, add those here
+  if (!is.null(sim$manualFireIgnitionRas)) {
+    mod$burnableAreas[!is.na(sim$manualFireIgnitionRas[])] <- 1
   }
 
   vals <- data.table(B = getValues(burnableAreas))   ## making a mask is probably faster with data.table
@@ -355,6 +392,12 @@ doFireSpread <- function(sim) {
     startPix <- rbinom(n = ncell(startPix), size = 1, prob = pmin(startPix[], 1))
     startPix <- which(startPix > 0) ## winners are 0 or larger.
     sim$startPix <- sample(startPix)  ## randomize order so that first fires aren't always at top of landscape
+
+    ## add manual ignitions
+    if (!is.null(sim$manualFireIgnitionRas)) {
+      startPix <- sample(which(!is.na(sim$manualFireIgnitionRas[])), P(sim)$noStartPix)
+      sim$startPix <- sample(c(sim$startPix, startPix))  ### randomize order again
+    }
   }
 
   if (length(sim$startPix)) {
