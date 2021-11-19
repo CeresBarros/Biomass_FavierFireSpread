@@ -334,7 +334,8 @@ doFireSpread <- function(sim) {
 
   ## if fires are to start and spread in other locations, add those here
   if (!is.null(sim$manualFireIgnitionRas)) {
-    mod$burnableAreas[!is.na(sim$manualFireIgnitionRas[])] <- 1
+    manualFireIgnitionRas <- sim$manualFireIgnitionRas
+    mod$burnableAreas[!is.na(manualFireIgnitionRas[])] <- 1
   }
 
   ## change to a binary mask.
@@ -387,6 +388,13 @@ doFireSpread <- function(sim) {
     mod$burnableAreas <- mask(mod$burnableAreas, spreadProb_map)
   }
 
+  ## redo burnable areas if missing fire probabilities
+  if (exists("manualFireIgnitionRas")) {
+    if (any(!is.na(manualFireIgnitionRas[is.na(spreadProb_map[])]))) {
+      manualFireIgnitionRas <- mask(manualFireIgnitionRas, spreadProb_map)
+    }
+  }
+
   ## MAKE RASTER OF FIRE SPREAD -------------------------------
   ## note that this function has two random components: selection of starting pixels and fire spread
   ## Favier's model:
@@ -402,8 +410,8 @@ doFireSpread <- function(sim) {
     sim$startPix <- sample(startPix)  ## randomize order so that first fires aren't always at top of landscape
 
     ## add manual ignitions
-    if (!is.null(sim$manualFireIgnitionRas)) {
-      startPix <- sample(which(!is.na(sim$manualFireIgnitionRas[])), P(sim)$noStartPix)
+    if (exists("manualFireIgnitionRas")) {
+      startPix <- sample(which(!is.na(manualFireIgnitionRas[])), P(sim)$noStartPix)
       sim$startPix <- sample(c(sim$startPix, startPix))  ### randomize order again
     }
   }
