@@ -510,7 +510,7 @@ doNoFire <- function(sim) {
     message(crayon::red(paste0("FavierFireSpread is missing one/several of the following rasters:\n",
                                "  fireRSORas, fireROSRas, fireIntRas, fireTFCRas, fireCFBRas or fireIgnitionProb.\n",
                                "  DUMMY RASTERS will be used - if this is not intended, please \n",
-                               "  use a fire module that provides them (e.g. Biomass_fireProperties)")))
+                               "  use a fire module that provides them (e.g. fireProperties)")))
     vals <- getValues(sim$rasterToMatch)
     valsCFB <- valsInt <- valsROS <- valsRSO <- valsTFC <- integer(0)
     valsCFB[!is.na(vals)] <- runif(sum(!is.na(vals)), 0, 1)
