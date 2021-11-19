@@ -1,5 +1,5 @@
 ---
-title: "Biomass_FavierFireSpread"
+title: "FavierFireSpread"
 author: "Ceres Barros"
 date: "27 April 2021"
 output: pdf_document
@@ -48,12 +48,12 @@ paths <- list(
   outputPath = outputDir
 )
 
-modules <- list("Biomass_FavierFireSpread")
+modules <- list("FavierFireSpread")
 
 times <- list(start = 0, end = 10)
 
 parameters <- list(
-  Biomass_FavierFireSpread = list(.useCache = TRUE, fireSize = 1000, noStartPix = 100)
+  FavierFireSpread = list(.useCache = TRUE, fireSize = 1000, noStartPix = 100)
 )
 
 objects <- list("studyArea" = foothills, "LCC2005" = LCC2005)
