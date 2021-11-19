@@ -276,7 +276,6 @@ Init <- function(sim) {
 
 ## Fire spread event in fire years - rasters should be back in LandR Biomass projection
 doFireSpread <- function(sim) {
-  browser()
   ## make or update fireIgnitionProb from fireSense_IgnitionPredicted
   if (time(sim) == P(sim)$fireInitialTime) {
     if (is.null(sim$fireIgnitionProb)) {
