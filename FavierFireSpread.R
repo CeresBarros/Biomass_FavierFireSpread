@@ -348,7 +348,7 @@ doFireSpread <- function(sim) {
   if (is.null(sim$fireIgnitionProb)) {
     message(blue(paste("'fireIgnitionProb' raster was not supplied. Igniting fires",
                        "randomly across the landscape, in number = to 'noStartPix'")))
-    sim$startPix <- sample(which(!is.na(getValues(burnableAreas))), P(sim)$noStartPix)
+    sim$startPix <- sample(which(!is.na(burnableAreas[])), P(sim)$noStartPix)
   } else {
     ## draw prob of having a fire, assess "winners", convert to vector (also export to sim)
     startPix <- mask(sim$fireIgnitionProb, burnableAreas)
