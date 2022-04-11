@@ -292,7 +292,7 @@ doFireSpread <- function(sim) {
     burnableAreas <- sim$rasterToMatch
   }
 
-  vals <- data.table(B = getValues(burnableAreas))   ## making a mask is probably faster with data.table
+  vals <- data.table(B = burnableAreas[])   ## making a mask is probably faster with data.table
   vals <- vals[B > 0, B := 1]
   vals <- vals[B <= 0, B := NA]
   burnableAreas[] <- vals$B
@@ -303,7 +303,7 @@ doFireSpread <- function(sim) {
   spreadProb_map <- sim$fireROSRas * sim$fireIntRas
   spreadProb_map <- mask(spreadProb_map, burnableAreas)
 
-  vals <- data.table(spreadP = getValues(spreadProb_map))   ## making a mask is probably faster with data.table
+  vals <- data.table(spreadP = spreadProb_map[])   ## making a mask is probably faster with data.table
   ## before:
   # vals[!is.na(spreadP) & spreadP > 0, spreadPsc := scales::rescale(spreadP, to = P(sim)$spreadProbRange)]
 
@@ -326,7 +326,7 @@ doFireSpread <- function(sim) {
   persistProb_map[sim$fireIntRas[] == 0] <- 0
   persistProb_map <- mask(persistProb_map, burnableAreas)
 
-  vals <- data.table(persisP = getValues(persistProb_map))   ## making a mask is probably faster with data.table
+  vals <- data.table(persisP = persistProb_map[])   ## making a mask is probably faster with data.table
   vals[!is.na(persisP), persisPsc := scales::rescale(persisP, to = P(sim)$persistProbRange)]
   vals[persisP == 0, persisPsc := 0]
   persistProb_map[] <- vals$persisPsc
@@ -485,7 +485,7 @@ doNoFire <- function(sim) {
     ## even if one of the rasterToMatch is present re-do both.
     ## if we need rasterToMatch, that means a) we don't have it, but b) we will have rawBiomassMap
     sim$rasterToMatch <- rawBiomassMap
-    RTMvals <- getValues(sim$rasterToMatch)
+    RTMvals <- sim$rasterToMatch[]
     sim$rasterToMatch[!is.na(RTMvals)] <- 1
 
     sim$rasterToMatch <- Cache(writeOutputs, sim$rasterToMatch,
@@ -511,7 +511,7 @@ doNoFire <- function(sim) {
                                "  fireRSORas, fireROSRas, fireIntRas, fireTFCRas, fireCFBRas or fireIgnitionProb.\n",
                                "  DUMMY RASTERS will be used - if this is not intended, please \n",
                                "  use a fire module that provides them (e.g. fireProperties)")))
-    vals <- getValues(sim$rasterToMatch)
+    vals <- sim$rasterToMatch[]
     valsCFB <- valsInt <- valsROS <- valsRSO <- valsTFC <- integer(0)
     valsCFB[!is.na(vals)] <- runif(sum(!is.na(vals)), 0, 1)
     valsROS[!is.na(vals)] <- as.integer(round(runif(sum(!is.na(vals)), 0, 100)))
