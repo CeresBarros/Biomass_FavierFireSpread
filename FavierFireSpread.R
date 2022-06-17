@@ -390,6 +390,9 @@ doFireSpread <- function(sim) {
     rstCurrentBurn <- mask(rstCurrentBurn, burnableAreas)
   }
 
+  if (any(table(rstCurrentBurn[]) > sim$fireSize)) {
+    browser()
+  }
   ## output fire raster with fire IDs
   sim$rstCurrentFires <- rstCurrentBurn
   ## convert to mask
