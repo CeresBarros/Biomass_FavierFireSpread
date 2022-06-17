@@ -15,10 +15,10 @@ defineModule(sim, list(
   documentation = list("README.txt", "FavierFireSpread.Rmd"),
   reqdPkgs = list("R.utils", "raster", "data.table", "dplyr", "humidity", #"cffdrs",  ## cffdrs is causing installation problems
                   "sf", "scales", "crayon",
-                  "PredictiveEcology/SpaDES.core@development",
-                  "PredictiveEcology/SpaDES.tools@development",
-                  "PredictiveEcology/reproducible@development",
-                  "PredictiveEcology/LandR@development (>= 1.0.0.9003)"),
+                  "PredictiveEcology/SpaDES.core (>= 1.0.8.9014)",
+                  "PredictiveEcology/SpaDES.tools (>= 0.3.8.9000)",
+                  "PredictiveEcology/reproducible (>= 1.2.8)",
+                  "PredictiveEcology/LandR (>= 1.0.0.9003)"),
   parameters = rbind(
     defineParameter("noStartPix", "integer", 100L, 0L, NA,
                     desc = paste("Number of fire events. Only used if fireIgnitionProb is not available")),
