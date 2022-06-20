@@ -391,7 +391,7 @@ doFireSpread <- function(sim) {
   }
 
   if (any(table(rstCurrentBurn[]) > sim$fireSize)) {
-    browser()
+    stop("Fire size exceeded sim$fireSize")
   }
   ## output fire raster with fire IDs
   sim$rstCurrentFires <- rstCurrentBurn
