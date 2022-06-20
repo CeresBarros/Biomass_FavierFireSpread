@@ -364,6 +364,7 @@ doFireSpread <- function(sim) {
                             spreadProb = spreadProb_map,
                             start = sim$startPix,
                             iterations = 1,
+                            maxSize = sim$fireSize,
                             plot.it = FALSE,
                             asRaster = FALSE)
 
@@ -372,7 +373,6 @@ doFireSpread <- function(sim) {
                               persistProb = persistProb_map,
                               start = escapedFires,
                               # start = sim$startPix,
-                              maxSize = sim$fireSize,
                               plot.it = FALSE)
   } else {
     rstCurrentBurn <- setValues(burnableAreas, rep(NA, ncell(burnableAreas)))
