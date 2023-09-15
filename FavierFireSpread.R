@@ -162,6 +162,9 @@ Init <- function(sim) {
     stop("'P(sim)$persistProbRange[1]' must be <= 'P(sim)$persistProbRange[2]'")
   }
 
+  ## define first fire year
+  sim$fireYear <- as.integer(P(sim)$fireInitialTime)
+
   ## try to make fireIgnitionProb from fireSense_IgnitionPredicted
   ## if fireSense_IgntionPredicted not present, try again later
   mod$useFireSense <- FALSE
